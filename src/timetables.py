@@ -40,7 +40,8 @@ def get_filtered_json(
 def separate_sections_into_types(
     filtered_json: Annotated[
         dict, "filtered json file, i.e, with only courses selected"
-    ]
+    ],
+    unwanted_sections: Annotated[dict, "unwanted sections per course"],
 ) -> dict:
     """
     Function to separate the sections into lectures, tutorials and practicals
@@ -62,7 +63,9 @@ def separate_sections_into_types(
             # inner dictionary we'll be continuously referring to
             ref = filtered_json[type][course]
             for section in ref["sections"]:
-                if section.startswith("L"):
+                if section in unwanted_sections.get(course, []):
+                    continue
+                elif section.startswith("L"):
                     lectures.append(section)
                 elif section.startswith("T"):
                     tutorials.append(section)
@@ -88,6 +91,7 @@ def generate_intra_combinations(
     filtered_json: Annotated[
         dict, "filtered json file, i.e, with only courses selected"
     ],
+    unwanted_sections: Annotated[dict, "unwanted sections per course"],
 ) -> dict:
     """
     Function that generates all possible combinations of sections within each course
@@ -99,7 +103,7 @@ def generate_intra_combinations(
         dict: dictionary of all possible combinations of sections within each course
     """
 
-    sep = separate_sections_into_types(filtered_json)
+    sep = separate_sections_into_types(filtered_json, unwanted_sections)
     combs = {}
     for type in sep:
         combs[type] = {}
@@ -124,6 +128,7 @@ def generate_exhaustive_timetables(
     filtered_json: Annotated[
         dict, "filtered json file, i.e, with only courses selected"
     ],
+    unwanted_sections: Annotated[dict, "unwanted sections per course"],
     n_dels: Annotated[int, "number of DELs selected"],
     n_opels: Annotated[int, "number of OPELs selected"],
     n_huels: Annotated[int, "number of HUELs selected"],
@@ -138,7 +143,7 @@ def generate_exhaustive_timetables(
         list: list of all possible timetables (exhaustive and inclusive of clashes)
     """
 
-    combs = generate_intra_combinations(filtered_json)
+    combs = generate_intra_combinations(filtered_json, unwanted_sections)
     timetables = []
     cdcs = []
     dels = []
@@ -523,9 +528,6 @@ if __name__ == "__main__":
         "CS F214",
         "CS F215",
         "CS F222",
-        "ECON F311",
-        "ECON F312",
-        "ECON F313",
     ]
 
     # Order the oreference of DELs, HUELs and OPELs
@@ -549,12 +551,13 @@ if __name__ == "__main__":
     lite_order = ["S", "Su", "M", "T", "W", "Th", "F"]
 
     # load the json file created
-    tt_json = json.load(open("./files/timetable.json", "r"))
+    tt_json = json.load(open(r".\files\timetable.json", "r"))
 
     filtered_json = get_filtered_json(tt_json, CDCs, DEls, HUELs, OPELs)
 
+    dic = {"CS F213": ["T2", "T4", "P3"], "CS F214": ["T2"]}
     exhaustive_list_of_timetables = generate_exhaustive_timetables(
-        filtered_json, nDels, nOpels, nHuels
+        filtered_json, dic, nDels, nOpels, nHuels
     )
 
     timetables_without_clashes = remove_clashes(
