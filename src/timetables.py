@@ -2,6 +2,253 @@ import json
 from itertools import product, combinations
 from operator import itemgetter
 from typing import Annotated
+from datetime import datetime
+from copy import deepcopy
+
+
+def exam_spread_score(
+    exam_times_CDC,
+    exam_times_EL,
+):
+    scores_spread = []
+    for x in exam_times_EL:
+        exam_times_copy = deepcopy(exam_times_CDC)
+        exam_times_copy.append(x)
+        exam_times_copy.sort()
+        score_spread = 0
+        for y in range(1, len(exam_times_copy)):
+            diff = exam_times_copy[y][0].date() - exam_times_copy[y - 1][0].date()
+            diff_hr = (exam_times_copy[y][0] - exam_times_copy[y - 1][0]).seconds
+            if diff.days > 1:
+                multiplier = 10
+                for a in range(0, diff.days):
+                    multiplier /= 1.1
+                    score_spread += multiplier
+            elif diff.days == 1:
+                if diff_hr == 0:
+                    score_spread += 5
+            elif diff.days == 0:
+                score_spread -= 75 * 3600 // diff_hr
+        scores_spread.append((score_spread, x[1]))
+    return scores_spread
+
+
+def exam_course_score(exam_times_CDC, exam_times_EL, course):
+    scores_course = []
+    for x in exam_times_EL:
+        exam_times_copy = deepcopy(exam_times_CDC)
+        exam_times_copy.append(x)
+        exam_times_copy.sort()
+        score_course = 0
+        for y in range(1, len(exam_times_copy)):
+            diff = exam_times_copy[y][0].date() - exam_times_copy[y - 1][0].date()
+            diff_hr = (exam_times_copy[y][0] - exam_times_copy[y - 1][0]).seconds
+            if exam_times_copy[y][1] == course:
+                if diff.days >= 1:
+                    if y == len(exam_times_copy) - 1 or (
+                        (
+                            exam_times_copy[y + 1][0].date()
+                            - exam_times_copy[y][0].date()
+                        ).days
+                        > 1
+                    ):
+                        score_course -= 10 * (diff.days)
+                    elif (
+                        exam_times_copy[y + 1][0].date() - exam_times_copy[y][0].date()
+                    ).days == 1:
+                        if (exam_times_copy[y + 1][0] - exam_times_copy[y][0]).seconds:
+                            score_course += (
+                                15
+                                * 3600
+                                / (
+                                    exam_times_copy[y + 1][0] - exam_times_copy[y][0]
+                                ).seconds
+                            )
+                        else:
+                            score_course -= 24
+
+                    elif (
+                        exam_times_copy[y + 1][0].date() - exam_times_copy[y][0].date()
+                    ).days == 0:
+                        score_course += (
+                            5
+                            * 3600
+                            / (
+                                exam_times_copy[y + 1][0] - exam_times_copy[y][0]
+                            ).seconds
+                        )
+                elif diff.days == 0:
+                    score_course += 15 * 3600 / diff_hr
+        scores_course.append((score_course, x[1]))
+    return scores_course
+
+
+def no_double_exams(exam_times_CDC, exam_times_EL):
+    no_double_exams_set = set([])
+    for x in exam_times_EL:
+        flag = True
+        for z in exam_times_CDC:
+            if (z[0].date() - x[0].date()).days == 0:
+                flag = False
+        if flag:
+            no_double_exams_set.add(x[1])
+    return no_double_exams_set
+
+
+def exam_schedule_fit(
+    tt_json: Annotated[dict, "original tt json file"],
+    CDCs: Annotated[list[str], "list of BITS codes for CDCs selected"],
+    DELs: Annotated[list[str], "list of BITS codes for DEls selected"],
+    HUELs: Annotated[list[str], "list of BITS codes for HUELs selected"],
+    OPELs: Annotated[list[str], "list of BITS codes for OPELs selected"],
+    fit,
+    course="",
+):
+    exams_CDC_midsem = []
+    exams_EL_midsem = []
+    exams_CDC_compre = []
+    exams_EL_compre = []
+    for exam in ["midsem", "compre"]:
+        exams_CDC: list[(datetime, str)] = []
+        for CDC in CDCs:
+            exam_time = datetime.strptime(
+                tt_json["courses"][CDC]["exams_iso"][0][exam].split("|")[0],
+                "%Y-%m-%dT%H:%M:%S",
+            )
+            exams_CDC.append((exam_time, CDC))
+            exams_CDC.sort()
+
+        exams_EL = []
+        for EL in DELs + OPELs + HUELs:
+            if not tt_json["courses"].get(EL):
+                continue
+
+            exam_time_EL = datetime.strptime(
+                tt_json["courses"][EL]["exams_iso"][0][exam].split("|")[0],
+                "%Y-%m-%dT%H:%M:%S",
+            )
+            for x in exams_CDC:
+                flag = 1
+                if exam_time_EL == x[0]:
+                    flag = 0
+                    break
+            if flag:
+                exams_EL.append((exam_time_EL, EL))
+
+        if exam == "midsem":
+            exams_CDC_midsem = exams_CDC
+            exams_EL_midsem = exams_EL
+
+        elif exam == "compre":
+            exams_CDC_compre = exams_CDC
+            exams_EL_compre = exams_EL
+
+    if "4" in fit:
+        no_double_exams_midsem = no_double_exams(exams_CDC_midsem, exams_EL_midsem)
+        no_double_exams_compre = no_double_exams(exams_CDC_compre, exams_EL_compre)
+        no_double_exams_final = no_double_exams_compre.intersection(
+            no_double_exams_midsem
+        )
+        if fit == "4":
+            return [x for x in no_double_exams_final]
+
+    if "1" in fit:  # spread
+        scores_spread_midsem = exam_spread_score(exams_CDC_midsem, exams_EL_midsem)
+        scores_spread_midsem.sort()
+        scores_spread_midsem.reverse()
+
+        scores_spread_compre = exam_spread_score(exams_CDC_compre, exams_EL_compre)
+        scores_spread_compre.sort()
+        scores_spread_compre.reverse()
+
+        scores_final_1 = []
+        for x in scores_spread_midsem:
+            for y in scores_spread_compre:
+                if x[1] == y[1]:
+                    scores_final_1.append((x[0] + y[0], x[1]))
+        scores_final_1.sort()
+        if fit == "1":
+            return [x[1] for x in scores_final_1]
+        elif fit == "14" and len(no_double_exams_final) != 0:
+            return [x[1] for x in scores_final_1 if x[1] in no_double_exams_final]
+        elif fit == "14" and len(no_double_exams_final) == 0:
+            print("All given courses have double exams.")
+            return [x[1] for x in scores_final_1]
+
+    if "2" in fit:
+        scores_spread_midsem = exam_spread_score(exams_CDC_midsem, exams_EL_midsem)
+        scores_spread_midsem.sort()
+
+        scores_spread_compre = exam_spread_score(exams_CDC_compre, exams_EL_compre)
+        scores_spread_compre.sort()
+
+        scores_final_2 = []
+        for x in scores_spread_midsem:
+            for y in scores_spread_compre:
+                if x[1] == y[1]:
+                    scores_final_2.append((x[0] + y[0], x[1]))
+        if fit == "2":
+            return [x[1] for x in scores_final_2]
+        elif fit == "24" and len(no_double_exams_final) != 0:
+            return [x[1] for x in scores_final_3 if x[1] in no_double_exams_final]
+        elif fit == "24" and len(no_double_exams_final) == 0:
+            print("All given courses have double exams.")
+            return [x[1] for x in scores_final_3]
+
+    if "3" in fit:
+        scores_course_midsem = exam_course_score(
+            exams_CDC_midsem, exams_EL_midsem, course
+        )
+        scores_course_midsem.sort()
+
+        scores_course_compre = exam_course_score(
+            exams_CDC_compre, exams_EL_compre, course
+        )
+        scores_course_compre.sort()
+
+        scores_final_3 = []
+        for x in scores_course_midsem:
+            for y in scores_course_compre:
+                if x[1] == y[1]:
+                    scores_final_3.append((x[0] + y[0], x[1]))
+        scores_final_3.sort()
+        if fit == "3":
+            return [x[1] for x in scores_final_3]
+        elif fit == "34" and len(no_double_exams_final) != 0:
+            return [x[1] for x in scores_final_3 if x[1] in no_double_exams_final]
+        elif fit == "34" and len(no_double_exams_final) == 0:
+            print("All given courses have double exams.")
+            return [x[1] for x in scores_final_3]
+
+    if "1" in fit and "3" in fit:
+        scores_final_13 = []
+        for x in scores_final_1:
+            for y in scores_final_3:
+                if x[1] == y[1]:
+                    scores_final_13.append((x[0] + y[0], x[1]))
+        scores_final_13.sort()
+        if fit == "13":
+            return [x[1] for x in scores_final_13]
+        elif fit == "134" and len(no_double_exams_final) != 0:
+            return [x[1] for x in scores_final_13 if x[1] in no_double_exams_final]
+        elif fit == "134" and len(no_double_exams_final) == 0:
+            return [x[1] for x in scores_final_13]
+            print("All given courses have double exams.")
+
+    if "2" in fit and "3" in fit:
+        scores_final_23 = []
+        for x in scores_final_2:
+            for y in scores_final_3:
+                if x[1] == [y]:
+                    scores_final_23.append((x[0] + y[0], x[1]))
+        scores_final_23.sort()
+        if fit == "23":
+            return [x[1] for x in scores_final_23]
+        elif fit == "234" and len(no_double_exams_final) != 0:
+            return [x[1] for x in scores_final_23 if x[1] in no_double_exams_final]
+        elif fit == "234" and len(no_double_exams_final) == 0:
+            print("All given courses have double exams.")
+            return [x[1] for x in scores_final_23]
 
 
 def get_filtered_json(
@@ -523,12 +770,7 @@ def export_to_json(timetables: list, filtered_json: dict, n_export: int = 100) -
 
 if __name__ == "__main__":
     # need to get these as inputs
-    CDCs = [
-        "CS F213",
-        "CS F214",
-        "CS F215",
-        "CS F222",
-    ]
+    CDCs = ["CS F213", "CS F214", "CS F215", "CS F222", "ECON F211"]
 
     # Order the oreference of DELs, HUELs and OPELs
 
@@ -540,7 +782,7 @@ if __name__ == "__main__":
 
     nOpels = len(OPELs)
 
-    HUELs = []
+    HUELs = ["GS F233", "HSS F365"]
 
     nHuels = len(HUELs)
 
@@ -553,9 +795,10 @@ if __name__ == "__main__":
     # load the json file created
     tt_json = json.load(open(r".\files\timetable.json", "r"))
 
+    exam_schedule_fit(tt_json, CDCs, DEls, HUELs, OPELs, "134", "CS F213")
     filtered_json = get_filtered_json(tt_json, CDCs, DEls, HUELs, OPELs)
 
-    dic = {"CS F213": ["T2", "T4", "P3"], "CS F214": ["T2"]}
+    dic = {}
     exhaustive_list_of_timetables = generate_exhaustive_timetables(
         filtered_json, dic, nDels, nOpels, nHuels
     )
@@ -568,7 +811,7 @@ if __name__ == "__main__":
         "Number of timetables without clashes (classes):",
         len(timetables_without_clashes),
     )
-
+    print(timetables_without_clashes[0])
     timetables_without_clashes = remove_exam_clashes(
         timetables_without_clashes, filtered_json
     )
@@ -578,6 +821,7 @@ if __name__ == "__main__":
         len(timetables_without_clashes),
     )
 
+    print(timetables_without_clashes[0])
     in_my_preference_order = day_wise_filter(
         timetables_without_clashes,
         filtered_json,
