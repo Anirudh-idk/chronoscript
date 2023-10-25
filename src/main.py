@@ -335,7 +335,7 @@ if __name__ == "__main__":
     tt_json = json.load(open(json_path, "r"))
     courses = tt_json["courses"].keys()
     CDCs: list[str] = []
-    print("Please enter your CDCs(enter q to when done):")
+    print("Please enter your CDCs,Format:- MATH F111 (enter q to when done):")
     while True:
         CDC: str = input("--> ").strip()
         if CDC.lower() == "q":
@@ -350,6 +350,9 @@ if __name__ == "__main__":
     DELs: list[str] = []
     OPELs: list[str] = []
     HUELs: list[str] = []
+    nDELs: int = len(DELs)
+    nOPELs: int = len(OPELs)
+    nHUELs: int = len(HUELs)
     preference_order: list[str] = ["DELs", "HUELs", "OPELs"]
     choice_in = input(
         "Enter 'add' to add DELs,OPELs,HUELs or enter 'skip' to skip this section: "
@@ -362,6 +365,39 @@ if __name__ == "__main__":
 
     if choice_in.strip().lower() == "add":
         DELs, OPELs, HUELs = El_input()
+
+        while True:
+            ndels_in: str = input("Enter the number of DELs you want: ").strip()
+            if ndels_in == "":
+                nDELs = len(DELs)
+                break
+            elif not ndels_in.isnumeric() or int(ndels_in) > len(DELs):
+                print("Invalid number of DELs.")
+            elif int(ndels_in) <= len(DELs):
+                nDELs = int(ndels_in)
+                break
+
+        while True:
+            nopels_in: str = input("Enter the number of DELs you want: ").strip()
+            if nopels_in == "":
+                nDELs = len(OPELs)
+                break
+            elif not nopels_in.isnumeric() or int(nopels_in) > len(OPELs):
+                print("Invalid number of DELs.")
+            elif int(nopels_in) <= len(OPELs):
+                nOPELs = int(nopels_in)
+                break
+
+        while True:
+            nhuels_in: str = input("Enter the number of OPELs you want: ").strip()
+            if nhuels_in == "":
+                nDELs = len(HUELs)
+                break
+            elif not nhuels_in.isnumeric() or int(nhuels_in) > len(HUELs):
+                print("Invalid number of HUELs.")
+            elif int(nhuels_in) <= len(HUELs):
+                nHUELs = int(nhuels_in)
+                break
 
         print(("---Preference order---"))
         print(*[f"{x} : {i+1}" for i, x in enumerate(preference_order)], sep="\n")
@@ -551,25 +587,9 @@ if __name__ == "__main__":
                 else:
                     continue
 
-    nDELs: int = len(DELs)
-    nHUELs: int = len(HUELs)
-    nOPELs: int = len(OPELs)
-
     free_days: list[str] = [days[x] for x in free_days]
     lite_order: list[str] = [days[x] for x in days_order]
 
-    if exam_fit != "":
-        print("Order of Electives according to your preferred exam fit:")
-        timetables.exam_schedule_fit(
-            tt_json, CDCs, DELs, HUELs, OPELs, exam_fit, course_fit
-        )
-        print(
-            "----Final list of electives, all of them will be included in timetable----"
-        )
-        print("Enter the electives you want.")
-        DELs, OPELs, HUELs = El_input()
-
-    print(CDCs, DELs, OPELs, HUELs)
     print("\nGenerating timetables....")
     filtered_json = timetables.get_filtered_json(tt_json, CDCs, DELs, HUELs, OPELs)
 
@@ -590,11 +610,14 @@ if __name__ == "__main__":
         len(timetables_without_clashes),
     )
 
-    in_my_preference_order = timetables.day_wise_filter(
+    in_my_preference_order = timetables.generate_preferred_timetables(
+        tt_json,
         timetables_without_clashes,
         filtered_json,
         free_days,
         lite_order,
+        exam_fit,
+        course_fit,
         filter=False,
         strong=False,
     )
