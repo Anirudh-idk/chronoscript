@@ -7,37 +7,78 @@ from copy import deepcopy
 
 
 def exam_spread_score(
-    exam_times_CDC,
-    exam_times_EL,
-):
-    exam_times_tt = exam_times_CDC + exam_times_EL
+    exam_times_CDC: Annotated[list, "list of CDCs and their exam times"],
+    exam_times_EL: Annotated[list, "list of Electives and their exam times"],
+) -> int:
+    """
+    Function to return a score based on how spread out the combination of courses is
+
+    Args:
+        exam_times_CDC (list): list of CDCs and their exam times
+        exam_times_EL (list): list of Electives and their exam times
+
+    Returns:
+        int: score calculated for how spread out the combination is
+    """
+    # creating one list with sorted exam dates
+    exam_times_tt: list[(datetime, str)] = exam_times_CDC + exam_times_EL
     exam_times_tt.sort()
-    score_spread = 0
+    score_spread: int = 0
     for y in range(1, len(exam_times_tt)):
-        diff = exam_times_tt[y][0].date() - exam_times_tt[y - 1][0].date()
-        diff_hr = (exam_times_tt[y][0] - exam_times_tt[y - 1][0]).seconds
+        # no of leaves between two exams
+        diff: int = exam_times_tt[y][0].date() - exam_times_tt[y - 1][0].date()
+
+        # time difference between two exams
+        diff_hr: int = (exam_times_tt[y][0] - exam_times_tt[y - 1][0]).seconds
         if diff.days > 1:
             multiplier = 10
+            # diminshing results for each consecutive leave to prioritise more uniform distribution
             for a in range(0, diff.days):
                 multiplier /= 1.1
                 score_spread += multiplier
         elif diff.days == 1:
             if diff_hr == 0:
                 score_spread += 5
+            # adding 0 if exam next day but difference more than 24 hr
         elif diff.days == 0:
             score_spread -= 75 * 3600 // diff_hr
+            # subtracting based on time difference for exams on same day, lesser the diff lesser the score
     return score_spread
 
 
-def exam_course_score(exam_times_CDC, exam_times_EL, course):
-    exam_times_tt = exam_times_CDC + exam_times_EL
+def exam_course_score(
+    exam_times_CDC: Annotated[list, "list of CDCs and their exam times"],
+    exam_times_EL: Annotated[list, "list of Electives and their exam times"],
+    course: Annotated[
+        str,
+        "the course if importance to a particular course is to be given in exam fit",
+    ],
+) -> int:
+    """
+    Function to return a score based on the how free is the given course is
+
+    Args:
+        exam_times_CDC (list): list of CDCs and their exam times
+        exam_times_EL (list): list of Electives and their exam times
+        course (str): Course code if of the course if importance to a course is given
+
+    Returns:
+        int: score calculated for the given course
+    """
+    # creating one list with sorted exam dates
+    exam_times_tt: list[(datetime, str)] = exam_times_CDC + exam_times_EL
     exam_times_tt.sort()
-    score_course = 0
+    score_course: int = 0
     for y in range(1, len(exam_times_tt)):
-        diff = exam_times_tt[y][0].date() - exam_times_tt[y - 1][0].date()
-        diff_hr = (exam_times_tt[y][0] - exam_times_tt[y - 1][0]).seconds
+        # no of leaves between two exams
+        diff: int = exam_times_tt[y][0].date() - exam_times_tt[y - 1][0].date()
+        # time difference between two exams
+        diff_hr: int = (exam_times_tt[y][0] - exam_times_tt[y - 1][0]).seconds
+
+        # only checking around the specific course
         if exam_times_tt[y][1] == course:
             if diff.days >= 1:
+                # manipulating score according to distance to next exam after given course
                 if y == len(exam_times_tt) - 1 or (
                     (exam_times_tt[y + 1][0].date() - exam_times_tt[y][0].date()).days
                     > 1
@@ -47,7 +88,7 @@ def exam_course_score(exam_times_CDC, exam_times_EL, course):
                     exam_times_tt[y + 1][0].date() - exam_times_tt[y][0].date()
                 ).days == 1:
                     if (exam_times_tt[y + 1][0] - exam_times_tt[y][0]).seconds:
-                        score_course += (
+                        score_course -= (
                             15
                             * 3600
                             / (exam_times_tt[y + 1][0] - exam_times_tt[y][0]).seconds
@@ -63,30 +104,67 @@ def exam_course_score(exam_times_CDC, exam_times_EL, course):
                         * 3600
                         / (exam_times_tt[y + 1][0] - exam_times_tt[y][0]).seconds
                     )
+
             elif diff.days == 0:
                 score_course += 15 * 3600 / diff_hr
     return score_course
 
 
-def no_double_exams(exam_times_CDC, exam_times_EL):
+def no_double_exams(
+    exam_times_CDC: Annotated[list, "list of CDCs and their exam times"],
+    exam_times_EL: Annotated[list, "list of Electives and their exam times"],
+) -> int:
+    """
+    Function to return score based on no. of double exams a combination has
+
+    Args:
+        exam_times_CDC (list): list of CDCs and their exam times
+        exam_times_EL (list): list of Electives and their exam times
+
+    Returns:
+        int: score calculated
+    """
+    score_no_double: int = 0
     for x in exam_times_EL:
         for z in exam_times_CDC:
             if (z[0].date() - x[0].date()).days == 0:
-                return 0
-    return 1
+                score_no_double += 5  # increasing 5 for each double exam
+    return score_no_double
 
 
 def exam_schedule_fit(
-    tt_json: Annotated[dict, "original tt json file"],
-    CDCs: Annotated[list[str], "list of BITS codes for CDCs selected"],
-    ELs: Annotated[list[str], "list of BITS codes for Electives selected"],
-    fit,
-    course,
-):
-    exams_CDC_midsem = []
-    exams_EL_midsem = []
-    exams_CDC_compre = []
-    exams_EL_compre = []
+    tt_json: Annotated[dict, "original timetable json"],
+    CDCs: Annotated[list, "list of BITS codes for CDCs selected"],
+    ELs: Annotated[list, "list of BITS codes for Electives selected"],
+    fit: Annotated[str, "type of exam fit you prefer"],
+    course: Annotated[
+        str,
+        "the course if importance to a particular course is to be given in exam fit",
+    ],
+) -> int:
+    """
+    Function to return a score based on the required schedule which can be used to sort the timetables.
+
+    Args:
+        tt_json (dict): original timetable json
+        CDCs (list): list of BITS codes for CDCs
+        ELs (list): list of BITS codes for Electives
+        fit (str): type of exam fit user prefers:
+            1 -> Spread out exams
+            2 -> compact exams
+            3 -> Importance to a specific course
+            4 -> Avoid double exams
+        course (str): Course code if of the course if importance to a course is given
+
+    Returns:
+        int: score calculated
+    """
+    # looping and initialising lists for midsem and compre exam times
+    exams_CDC_midsem: list[(datetime, str)] = []
+    exams_EL_midsem: list[(datetime, str)] = []
+    exams_CDC_compre: list[(datetime, str)] = []
+    exams_EL_compre: list[(datetime, str)] = []
+
     for exam in ["midsem", "compre"]:
         exams_CDC: list[(datetime, str)] = []
         for CDC in CDCs:
@@ -99,20 +177,11 @@ def exam_schedule_fit(
 
         exams_EL = []
         for EL in ELs:
-            if not tt_json["courses"].get(EL):
-                continue
-
             exam_time_EL = datetime.strptime(
                 tt_json["courses"][EL]["exams_iso"][0][exam].split("|")[0],
                 "%Y-%m-%dT%H:%M:%S",
             )
-            for x in exams_CDC:
-                flag = 1
-                if exam_time_EL == x[0]:
-                    flag = 0
-                    break
-            if flag:
-                exams_EL.append((exam_time_EL, EL))
+            exams_EL.append((exam_time_EL, EL))
 
         if exam == "midsem":
             exams_CDC_midsem = exams_CDC
@@ -122,41 +191,52 @@ def exam_schedule_fit(
             exams_CDC_compre = exams_CDC
             exams_EL_compre = exams_EL
 
+    # return score based on fit required
     if "4" in fit:
-        score_final_4 = no_double_exams(
+        score_final_4: int = no_double_exams(
             exams_CDC_midsem, exams_EL_midsem
         ) + no_double_exams(exams_CDC_compre, exams_CDC_compre)
 
     if "1" in fit or "2" in fit:  # spread
-        score_spread_midsem = exam_spread_score(exams_CDC_midsem, exams_EL_midsem)
-        score_spread_compre = exam_spread_score(exams_CDC_compre, exams_EL_compre)
+        score_spread_midsem: int = exam_spread_score(exams_CDC_midsem, exams_EL_midsem)
+        score_spread_compre: int = exam_spread_score(exams_CDC_compre, exams_EL_compre)
 
-        score_final_1 = score_spread_midsem + score_spread_compre
+        score_final_1: int = score_spread_midsem + score_spread_compre
         if fit == "1":
+            return (
+                -score_final_1
+            )  # inverting sign to account for more spread out schedule
+        elif fit == "2":
             return score_final_1
-        elif fit == "14" or fit == "24":
+        elif fit == "14":
+            return -score_final_1 + score_final_4
+        elif fit == "24":
             return score_final_1 + score_final_4
 
     if "3" in fit:
-        score_course_midsem = exam_course_score(
+        score_course_midsem: int = exam_course_score(
             exams_CDC_midsem, exams_EL_midsem, course
         )
 
-        score_course_compre = exam_course_score(
+        score_course_compre: int = exam_course_score(
             exams_CDC_compre, exams_EL_compre, course
         )
 
-        score_final_3 = score_course_midsem + score_course_compre
+        score_final_3: int = score_course_midsem + score_course_compre
 
         if fit == "3":
             return score_final_3
         elif fit == "34":
-            return score_final_1 + score_final_4
+            return score_final_3 + score_final_4
 
     if ("2" in fit or "1" in fit) and "3" in fit:
-        if fit == "13" or fit == "23":
+        if fit == "13":
+            return -score_final_1 + score_final_3
+        elif fit == "23":
             return score_final_1 + score_final_3
-        elif fit == "134" or fit == "234":
+        elif fit == "134":
+            return -score_final_1 + score_final_3 + score_final_4
+        elif fit == "234":
             return score_final_1 + score_final_3 + score_final_4
 
 
@@ -204,6 +284,7 @@ def separate_sections_into_types(
 
     Args:
         filtered_json (dict): filtered json file, i.e, with only courses selected
+        unwanted_sections (dict): unwanted sections per course
 
     Returns:
         dict: dictionary of courses' sections separated into lectures, tutorials and practicals
@@ -219,6 +300,7 @@ def separate_sections_into_types(
             # inner dictionary we'll be continuously referring to
             ref = filtered_json[type][course]
             for section in ref["sections"]:
+                # moving to next section if section in unwanted section
                 if section in unwanted_sections.get(course, []):
                     continue
                 elif section.startswith("L"):
@@ -254,6 +336,7 @@ def generate_intra_combinations(
 
     Args:
         filtered_json (dict): filtered json file, i.e, with only courses selected
+        unwanted_sections (dict): unwanted sections per course
 
     Returns:
         dict: dictionary of all possible combinations of sections within each course
@@ -294,6 +377,7 @@ def generate_exhaustive_timetables(
 
     Args:
         filtered_json (dict): filtered json file, i.e, with only courses selected
+        unwanted_sections (dict): unwanted sections per course
 
     Returns:
         list: list of all possible timetables (exhaustive and inclusive of clashes)
@@ -485,7 +569,7 @@ def remove_exam_clashes(
 
 
 def generate_preferred_timetables(
-    tt_json: Annotated[dict, "original json file"],
+    tt_json: Annotated[dict, "original timetable json"],
     timetables: Annotated[list, "list of timetables without clashes"],
     json: Annotated[dict, "filtered json file"],
     free_days: Annotated[list[str], "list of days to be free if possible"],
@@ -493,8 +577,14 @@ def generate_preferred_timetables(
         list[str],
         "increasing order of how lite you want days to be (earlier means more lite)",
     ],
-    exam_fit,
-    exam_fit_course="",
+    exam_fit: Annotated[str, "type of exam schedule you prefer"],
+    exam_fit_course: Annotated[
+        str,
+        "the course if importance to a particular course is to be given in exam fit",
+    ],
+    priority_order: Annotated[
+        list, "Priority order of exam fit,free days,days liteness"
+    ],
     filter: Annotated[bool, "whether to filter or to just sort"] = False,
     strong: Annotated[bool, "whether to use strong filter or not"] = False,
 ) -> list:
@@ -502,10 +592,14 @@ def generate_preferred_timetables(
     Function that filters out timetables based on the number of free days and the lite order. Lite order is the order in which you want the days to be lite. For example, if you want Saturday to be the most lite day, then lite_order = ["S", "Su", "M", "T", "W", "Th", "F"] (set the order of the other 6 accordingly))
 
     Args:
+        tt_json (dict): original timetable json
         timetables (list): list of timetables without clashes
         json (dict): filtered json file, i.e, with only courses selected
         free_days (list): list of days to be free if possible
         lite_order (list): increasing order of how lite you want days to be (earlier means more lite)
+        exam_fit (str): type of exam schedule you prefer
+        exam_fit_course (str): the course if importance to a particular course is to be given in exam fit
+        priority_order (list): Priority order of exam fit,free days,days liteness.
         filter (bool, optional): whether to filter or to just sort. Defaults to False.
         strong (bool, optional): whether to use strong filter or not. Defaults to False.
 
@@ -586,14 +680,17 @@ def generate_preferred_timetables(
         else:
             others.append((n_free, daily_scores, exam_fit_score, timetable))
 
-    # sorting based on the number of free days (descending) and then the daily scores (ascending)
-    matches_free_days = sorted(matches_free_days, key=itemgetter(2))
-    matches_free_days = sorted(matches_free_days, key=itemgetter(0), reverse=True)
-    matches_free_days = sorted(matches_free_days, key=itemgetter(1))
+    # sorting based on the priority order set by the user
 
-    others = sorted(others, key=itemgetter(2))
-    others = sorted(others, key=itemgetter(0), reverse=True)
-    others = sorted(others, key=itemgetter(1))
+    matches_free_days = sorted(
+        matches_free_days, key=itemgetter(priority_order[2] - 1), reverse=True
+    )
+    matches_free_days = sorted(matches_free_days, key=itemgetter(priority_order[1] - 1))
+    matches_free_days = sorted(matches_free_days, key=itemgetter(priority_order[0] - 1))
+
+    others = sorted(others, key=itemgetter(priority_order[2] - 1), reverse=True)
+    others = sorted(others, key=itemgetter(priority_order[1] - 1))
+    others = sorted(others, key=itemgetter(priority_order[0] - 1))
 
     # reorder back to original order (M, T, W, Th, F, S, Su)
     original_order = {
@@ -714,15 +811,18 @@ if __name__ == "__main__":
 
     nOpels = len(OPELs)
 
-    HUELs = ["GS F233", "HSS F365", "HSS F318"]
+    HUELs = ["HSS F228", "HSS F365", "GS F233", "HSS F361"]
 
-    nHuels = 1
+    nHuels = 2
 
     pref = ["DEls", "OPELs", "HUELs"]
 
     free_days = ["S"]
 
     lite_order = ["S", "Su", "M", "T", "W", "Th", "F"]
+
+    exam_fit = "234"
+    exam_fit_course = "CS F214"
 
     # load the json file created
     tt_json = json.load(
@@ -731,7 +831,7 @@ if __name__ == "__main__":
 
     filtered_json = get_filtered_json(tt_json, CDCs, DEls, HUELs, OPELs)
 
-    dic = {"CS F213": ["T4", "P1", "P2", "T3"]}
+    dic = {"CS F213": ["T4", "P4"], "CS F214": ["T1"], "CS F215": ["P4"]}
     exhaustive_list_of_timetables = generate_exhaustive_timetables(
         filtered_json, dic, nDels, nOpels, nHuels
     )
@@ -761,8 +861,9 @@ if __name__ == "__main__":
         filtered_json,
         free_days,
         lite_order,
-        exam_fit="134",
-        exam_fit_course="CS F213",
+        exam_fit,
+        exam_fit_course,
+        priority_order=[3, 2, 1],
         filter=False,
         strong=False,
     )
