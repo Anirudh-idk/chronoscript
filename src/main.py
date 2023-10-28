@@ -77,7 +77,6 @@ def check_section(section_list: list[str], json_file: dict) -> (int, dict):
             section_dict_courses[0:2]
         ).upper()  # get course code from the splitted list
         sec = section_dict_courses[2].upper()
-        print(sec)
         # initialise dict for a course
         if not unwanted_section_dict.get(course):
             unwanted_section_dict[course] = []
@@ -131,54 +130,14 @@ def check_section(section_list: list[str], json_file: dict) -> (int, dict):
     return (0, unwanted_section_dict)
 
 
-def El_input():
-    DELs: list[str] = []
-    OPELs: list[str] = []
-    HUELs: list[str] = []
-    print("Please enter your DELs(enter q to when done):")
-    while True:
-        DEL: str = input("--> ").strip()
-        if DEL.lower() == "q":
-            break
-        elif DEL.upper() not in courses:
-            print("Invalid course code! Try again")
-        elif DEL.upper() in DELs:
-            print("course already added!")
-        else:
-            DELs.append(DEL.upper())
-
-    print("Please enter your OPELs(enter q to when done):")
-    while True:
-        OPEL: str = input("--> ").strip()
-        if OPEL.lower() == "q":
-            break
-        elif OPEL.upper() not in courses:
-            print("Invalid course code! Try again")
-        elif OPEL.upper() in OPELs:
-            print("course already added!")
-        else:
-            OPELs.append(OPEL.upper())
-
-    print("Please enter your HUELs(enter q to when done):")
-    while True:
-        HUEL: str = input("--> ").strip()
-        if HUEL.lower() == "q":
-            break
-        elif HUEL.upper() not in courses:
-            print("Invalid course code! Try again")
-        elif HUEL.upper() in HUELs:
-            print("course already added!")
-        else:
-            HUELs.append(HUEL.upper())
-
-    return DELs, OPELs, HUELs
-
-
 if __name__ == "__main__":
     print("----------Chronoscript CLI----------\n")
-    json_path: str = os.path.join(files_path_absolute, "timetable.json")
+    json_path: str = os.path.join(
+        files_path_absolute, "timetable.json"
+    )  # checking if timetable json already exists
     flag: bool = True
     if os.path.isfile(json_path):
+        # prompting user to either continue with existing file or make a new one
         choice_in: str = input(
             f"Timetable JSON file found at '{json_path}',Enter to continue with this or enter 'json' to create new from scratch: "
         )
@@ -193,15 +152,23 @@ if __name__ == "__main__":
                 choice_in = input(
                     f"'{choice_in}' is not a valid option! Please press enter to continue with existing file or input 'json' to make a new one: "
                 )
+
+    # for creation of new json file
     if flag:
+        # csv creation
         print("\n-------CSV generation-------\n")
+
+        # request to confirm/enter timetable pdf file path
         print("---Select timetable pdf---")
         print("Select path for the timetable pdf")
         print("1. Default path : files/timetable.pdf")
         print("2. Pass custom path")
+
         choice_in: str = input("Enter your choice: ")
         while True:
-            if len(choice_in) <= 0 or not verify_input_for_number(choice_in.split())[0]:
+            if (
+                len(choice_in) <= 0 or not verify_input_for_number(choice_in.split())[0]
+            ):  # validating input
                 choice_in = input(
                     f"'{choice_in}' is not a valid choice! Enter 1 or 2: "
                 )
@@ -210,6 +177,8 @@ if __name__ == "__main__":
                 break
 
         pdf_path: str = os.path.join(files_path_absolute, "timetable.pdf")
+
+        # taking and validating input if new custom path chosen.
         if choice == 2:
             pdf_path = input("Enter the complete file path: ")
             pdf_path.replace('"', "")
@@ -227,6 +196,7 @@ if __name__ == "__main__":
                     else:
                         continue
 
+        # choosing page range for timetable pdf
         print("\n---Page Selection---")
         page_list: list[int] = []
         while True:
@@ -240,6 +210,7 @@ if __name__ == "__main__":
                 continue
             else:
                 page_list = [int(x) for x in page_list_in.split()]
+            # validating page range
             if len(page_list) < 2:
                 print(
                     "Invalid range! Please specify both a starting and an ending page."
@@ -264,7 +235,10 @@ if __name__ == "__main__":
             print("Some Error occured! Terminating..")
             raise Exception
 
+        # creating json file with created csv file
         print("-------JSON creation-------")
+
+        # metadata input
         metadata: list[int] = []
         while True:
             metadata_in: str = input(
@@ -320,11 +294,18 @@ if __name__ == "__main__":
             print("Some error occured! Terminating...")
             raise Exception
 
+    # Details for timetable generation
     print()
     print("-------TT generation-------\n")
+
+    # Prompting for Courses
     print("---Course Selection---")
-    tt_json = json.load(open(json_path, "r"))
+    tt_json = json.load(
+        open(json_path, "r")
+    )  # loading timetable.json to cross check for valid courses
     courses = tt_json["courses"].keys()
+
+    # CDCs input
     CDCs: list[str] = []
     print("Please enter your CDCs,Format:- MATH F111 (enter q to when done):")
     while True:
@@ -347,6 +328,7 @@ if __name__ == "__main__":
     nHUELs: int = len(HUELs)
     preference_order: list[str] = ["DELs", "HUELs", "OPELs"]
 
+    # prompting if user wants to add electives
     choice_in = input(
         "Enter 'add' to add DELs,OPELs,HUELs or enter 'skip' to skip this section: "
     )
@@ -358,8 +340,43 @@ if __name__ == "__main__":
 
     # input for Electives
     if choice_in.strip().lower() == "add":
-        DELs, OPELs, HUELs = El_input()
+        print("Please enter your DELs(enter q to when done):")
+        while True:
+            DEL: str = input("--> ").strip()
+            if DEL.lower() == "q":
+                break
+            elif DEL.upper() not in courses:
+                print("Invalid course code! Try again")
+            elif DEL.upper() in DELs:
+                print("course already added!")
+            else:
+                DELs.append(DEL.upper())
 
+        print("Please enter your OPELs(enter q to when done):")
+        while True:
+            OPEL: str = input("--> ").strip()
+            if OPEL.lower() == "q":
+                break
+            elif OPEL.upper() not in courses:
+                print("Invalid course code! Try again")
+            elif OPEL.upper() in OPELs:
+                print("course already added!")
+            else:
+                OPELs.append(OPEL.upper())
+
+        print("Please enter your HUELs(enter q to when done):")
+        while True:
+            HUEL: str = input("--> ").strip()
+            if HUEL.lower() == "q":
+                break
+            elif HUEL.upper() not in courses:
+                print("Invalid course code! Try again")
+            elif HUEL.upper() in HUELs:
+                print("course already added!")
+            else:
+                HUELs.append(HUEL.upper())
+
+        # number of each electives they want
         while True:
             ndels_in: str = input("Enter the number of DELs you want: ").strip()
             if ndels_in == "":
@@ -432,6 +449,7 @@ if __name__ == "__main__":
                 )
                 break
 
+    # asking for unwanted sections if any
     unwanted_sections: list[str] = []
     print(
         "\nPlease enter unwanted sections in the format: course_code section,for e.g. MATH F111 L1.(enter q to exit):"
@@ -440,7 +458,10 @@ if __name__ == "__main__":
         section: str = input("--> ").strip()
         cou: str = " ".join(section.split()[0:2])
         if section.lower() == "q":
-            code, dict_courses = check_section(unwanted_sections, tt_json)
+            code, dict_courses = check_section(
+                unwanted_sections, tt_json
+            )  # checking if the given selection is possible or not
+            # outputing errors based on error code
             if code == 0:
                 break
             elif code == 1:
@@ -458,6 +479,7 @@ if __name__ == "__main__":
         else:
             unwanted_sections.append(section.upper())
 
+    # input for free days and order of liteness
     print("\n---Days Preference---")
     days = {
         1: "M",
@@ -525,6 +547,7 @@ if __name__ == "__main__":
             else:
                 continue
 
+    # Prompt for exam fit
     print()
     print("------Exam Schedule Fit------")
     exam_schedule_fit: set[str] = set([])
@@ -535,10 +558,12 @@ if __name__ == "__main__":
         "4": "Avoid two exams on a day",
     }
     print(*[f"{k}: {v}" for k, v in exam_fit_dict.items()], sep="\n")
+
     while True:
         exam_schedule_fit_in: str = input(
             "Enter the your preferred schedule(s), you can enter two or more fits."
         ).strip()
+
         if (
             exam_schedule_fit_in != ""
             and not verify_input_for_number(exam_schedule_fit_in.split())[0]
@@ -549,6 +574,7 @@ if __name__ == "__main__":
             continue
         else:
             exam_schedule_fit = set([x for x in exam_schedule_fit_in.split()])
+
         if not exam_schedule_fit.issubset(set(exam_fit_dict.keys())):
             print(
                 f"'{list(exam_schedule_fit.difference(set(exam_fit_dict.keys())))[0]}' is not a valid option! Please Try again"
@@ -568,6 +594,8 @@ if __name__ == "__main__":
                 break
             else:
                 continue
+
+    # taking input for course if user chooses relevant option
     course_fit: str = ""
     if "3" in exam_schedule_fit_in:
         while True:
@@ -586,6 +614,7 @@ if __name__ == "__main__":
                 else:
                     continue
 
+    # Priority order input
     priority_dict: dict = {1: "Free days", 2: "Days Liteness", 3: "Exam Fit"}
     priorities: list[int] = []
 
@@ -621,6 +650,7 @@ if __name__ == "__main__":
             else:
                 continue
 
+    # inputs for strength of filter and the output filter
     print()
     strong: str = False
     filter: str = False
@@ -628,7 +658,7 @@ if __name__ == "__main__":
     while True:
         choice_in = (
             input(
-                "Do you prefer timetables with strong filter for free days,i.e.,only tts with exact free days, yes or no:   "
+                "Do you prefer timetables with strong filter for free days,i.e.,only tts with exact free days, yes or no: "
             )
             .strip()
             .lower()
@@ -705,6 +735,7 @@ if __name__ == "__main__":
         )
         timetables.export_to_json(in_my_preference_order, filtered_json)
 
+        # If the user wants timetable to be visual
         print()
         print("---Visualize---")
         while True:
@@ -732,6 +763,7 @@ if __name__ == "__main__":
                 print("\nCompre Schedule:\n\n")
                 print(tabulate.tabulate(dfs[2], headers="keys", tablefmt="fancy_grid"))
                 print("======================================================\n")
+                break
             else:
                 print("Invalid choice! Please try again.")
     else:
