@@ -285,9 +285,7 @@ if __name__ == "__main__":
                 if confirm_general_input(metadata_in, "year and semester"):
                     break
                 else:
-                    metadata_in: str = input(
-                        "Enter the academic year and semester(1 or 2). For e.g. 2023 1 :"
-                    )
+                    continue
         year: int = metadata[0]
         semester: int = metadata[1]
         try:
@@ -583,7 +581,7 @@ if __name__ == "__main__":
             if course_fit not in tt_json["courses"].keys():
                 print("Invalid course code! Please try again.")
             else:
-                if confirm_general_input([course_fit], "important course"):
+                if confirm_general_input(course_fit, "important course"):
                     break
                 else:
                     continue
