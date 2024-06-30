@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import json
 from parse_times import parse_time, parse_compre_time
 
@@ -60,6 +61,34 @@ def remove_duplicate_dicts(l: list[dict]) -> list[dict]:
     return new_l
 
 
+def null_empty_exams(course_json: dict) -> dict:
+    """
+    Function to nullify empty exams in a course json.
+
+    Args:
+        course_json (dict): The course json to nullify empty exams in.
+
+    Returns:
+        dict: The course json with empty exams nullified.
+    """
+    for course_code in course_json["courses"]:
+        course = course_json["courses"][course_code]
+        if len(course.get("exams")) == 0:
+            course["exams"] = [{}]
+        if len(course.get("exams_iso")) == 0:
+            course["exams_iso"] = [{}]
+        if course["exams"][0].get("midsem") == None:
+            course["exams"][0]["midsem"] = None
+        if course["exams"][0].get("compre") == None:
+            course["exams"][0]["compre"] = None
+        if course["exams_iso"][0].get("midsem") == None:
+            course["exams_iso"][0]["midsem"] = None
+        if course["exams_iso"][0].get("compre") == None:
+            course["exams_iso"][0]["compre"] = None
+
+    return course_json
+
+
 def create_json_file(
     timetable: pd.DataFrame,
     columns: list[str],
@@ -82,10 +111,18 @@ def create_json_file(
     tt: pd.DataFrame = timetable
     course_json: dict = {}
     tt.columns = columns
-    tt.drop(columns=["serial", "L", "P"], inplace=True)
+    tt.drop(columns=["serial"], inplace=True)
 
     # Filling all empty rows with the previous row's value for simplicity
-    tt.fillna(method="ffill", inplace=True)
+    # tt.fillna(method="ffill", inplace=True)
+
+    cols = [
+        "course_code",
+        "course_name",
+        "section",
+        "instructor",
+    ]
+    tt.loc[:, cols] = tt.loc[:, cols].ffill()
 
     for _, row in tt.iterrows():
         course_code = row["course_code"]
@@ -94,6 +131,8 @@ def create_json_file(
         if course_json.get(course_code) is None:
             course_json[course_code] = {}
             course_json[course_code]["units"] = row["U"]
+            course_json[course_code]["lecture units"] = row["L"]
+            course_json[course_code]["practical units"] = row["P"]
         if course_json[course_code].get("course_name") is None:
             course_json[course_code]["course_name"] = row["course_name"]
         if course_json[course_code].get("sections") is None:
@@ -104,7 +143,10 @@ def create_json_file(
         section = int(row["section"])
         if row["course_name"] == "Tutorial":
             section = "T" + str(section)
-        elif row["course_name"] == "Practical":
+        elif (row["course_name"] == "Practical") or (
+            course_json[course_code]["lecture units"] == "-"
+            and course_json[course_code]["practical units"] != "-"
+        ):
             section = "P" + str(section)
         else:
             section = "L" + str(section)
@@ -128,13 +170,28 @@ def create_json_file(
         # add schedule to the list of schedules for the section
         # list of schedules is a list of dictionaries, where each dictionary is a schedule
         # we kept it as a list, as a class may have multiple schedules (eg: "T Th @ 4" and "S @ 2")
-        course_json[course_code]["sections"][section]["schedule"].append(
-            {
-                "room": row["room"],
-                "days": tuple(row["days"].split()),
-                "hours": tuple([int(x) for x in list(row["hours"].split())]),
-            }
-        )
+        dictionary = {}
+        if not isnan(row["room"]):
+            dictionary["room"] = row["room"]
+        else:
+            dictionary["room"] = np.nan
+
+        if not isnan(row["days"]):
+            dictionary["days"] = tuple(row["days"].split())
+        else:
+            dictionary["days"] = np.nan
+
+        if not isnan(row["hours"]):
+            dictionary["hours"] = tuple([int(x) for x in list(row["hours"].split())])
+        else:
+            dictionary["hours"] = np.nan
+
+        if not (
+            isnan(dictionary["room"])
+            and isnan(dictionary["days"])
+            and isnan(dictionary["hours"])
+        ):
+            course_json[course_code]["sections"][section]["schedule"].append(dictionary)
 
         # remove duplicate schedules
         course_json[course_code]["sections"][section][
@@ -165,6 +222,9 @@ def create_json_file(
 
     # parse exam times
     for course_code in course_json:
+        # remove lecture units, practical units
+        del course_json[course_code]["lecture units"]
+        del course_json[course_code]["practical units"]
         exams_list = course_json[course_code]["exams"]
         exams_iso = []
         for exam in exams_list:
@@ -189,6 +249,9 @@ def create_json_file(
         "semester": semester,
     }
     final_json["courses"] = course_json
+
+    final_json = null_empty_exams(final_json)
+
     # output the json file
     json.dump(final_json, open(output_file, "w"), indent=4)
 
